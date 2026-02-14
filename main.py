@@ -165,14 +165,18 @@ def process_config_file(session, file_path, cursor, conn):
         return
 
     for f_conf in feeds:
+        source_name = f_conf.get('name', 'Unknown')
         try:
+            logging.info(f"Checking feed: {source_name} ({f_conf['url']})")
             feed = feedparser.parse(f_conf['url'])
             prio = f_conf.get('priority', DEFAULT_PRIORITY)
             sent_in_batch = 0
+            new_entries_found = 0
 
             for entry in feed.entries:
                 # Send at most 3 new entries per feed per run
                 if sent_in_batch >= 3:
+                    logging.warning(f"Batch limit reached for {source_name}. Skipping remaining entries.")
                     break
 
                 # Robust entry identification
@@ -197,6 +201,13 @@ def process_config_file(session, file_path, cursor, conn):
                     cursor.execute("INSERT INTO seen_entries (hash) VALUES (?)", (entry_hash,))
                     conn.commit()
                     sent_in_batch += 1
+                    new_entries_found += 1
+            
+            if new_entries_found == 0:
+                logging.info(f"No new entries for {source_name}.")
+            else:
+                logging.info(f"Finished {source_name}: {new_entries_found} new notifications sent.")
+
         except Exception as e:
             logging.error(f"Error processing feed ({f_conf.get('name', 'Unknown')}): {e}")
 
@@ -209,10 +220,15 @@ def main():
         return
     db_conn = init_db()
     cursor = db_conn.cursor()
+    logging.info("Starting synchronization cycle...")
     with requests.Session() as session:
         config_files = sorted([f for f in os.listdir(CONFIG_DIR) if f.endswith('.json')])
+        if not config_files:
+            logging.warning(f"No .json configuration files found in {CONFIG_DIR}")
         for filename in config_files:
+            logging.info(f"Processing config file: {filename}")
             process_config_file(session, os.path.join(CONFIG_DIR, filename), cursor, db_conn)
+    logging.info("Synchronization cycle completed.")
     db_conn.close()
 
 
