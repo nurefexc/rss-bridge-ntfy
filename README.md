@@ -85,6 +85,7 @@ To enable this, add the following **Secrets** to your GitHub repository (`Settin
 | `NTFY_TOKEN` | ntfy authentication token (optional) | - |
 | `DB_PATH` | Path to the SQLite database file for history | `rss_history.db` |
 | `SYNC_INTERVAL` | Synchronization interval in seconds | `600` |
+| `TZ` | System timezone (e.g., `Europe/Budapest`) | `UTC` |
 | `USER_AGENT` | Custom User-Agent for HTTP requests | *Browser-like UA* |
 
 ### Feed Configuration (JSON)

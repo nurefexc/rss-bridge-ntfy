@@ -11,6 +11,7 @@ import sys
 from bs4 import BeautifulSoup
 import time
 from datetime import datetime
+import zoneinfo
 
 # --- Configuration ---
 # Read environment variables with default values
@@ -18,18 +19,32 @@ CONFIG_DIR = os.getenv("CONFIG_DIR", "configs")
 BASE_URL = os.getenv("NTFY_URL", "https://ntfy.sh")
 NTFY_TOKEN = os.getenv("NTFY_TOKEN", "")
 DB_PATH = os.getenv("DB_PATH", "rss_history.db")
+TZ_NAME = os.getenv("TZ", "UTC")
 DEFAULT_PRIORITY = "3"
 USER_AGENT = os.getenv("USER_AGENT", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
 # Logging setup
+def get_now():
+    """Returns the current time in the configured timezone."""
+    return datetime.now(zoneinfo.ZoneInfo(TZ_NAME))
+
+class TZFormatter(logging.Formatter):
+    """Custom logging formatter that respects the configured timezone."""
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, zoneinfo.ZoneInfo(TZ_NAME))
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.isoformat(sep=' ', timespec='seconds')
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - [%(levelname)s] - %(message)s',
     handlers=[
         logging.FileHandler("rss_bridge.log", encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
+for handler in logging.root.handlers:
+    handler.setFormatter(TZFormatter('%Y-%m-%d %H:%M:%S - [%(levelname)s] - %(message)s'))
 
 db_conn = None
 
@@ -64,11 +79,13 @@ def init_db():
 
 
 def format_local_date(entry):
-    """Formats the feed entry date to a readable local time."""
+    """Formats the feed entry date to a readable local time based on TZ."""
     try:
         parsed_time = entry.get("published_parsed", entry.get("updated_parsed"))
         if parsed_time:
-            local_dt = datetime.fromtimestamp(time.mktime(parsed_time))
+            # Convert feed time (usually UTC) to local timezone
+            dt_utc = datetime.fromtimestamp(time.mktime(parsed_time), zoneinfo.ZoneInfo("UTC"))
+            local_dt = dt_utc.astimezone(zoneinfo.ZoneInfo(TZ_NAME))
             return local_dt.strftime('%Y-%m-%d %H:%M:%S')
     except Exception:
         pass
