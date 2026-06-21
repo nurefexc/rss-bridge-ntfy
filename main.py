@@ -106,7 +106,11 @@ class FeedEngine:
     def send_ntfy(self, entry, f_conf, topic, priority, delay_str):
         title = entry.get("title", "No Title")
         link = entry.get("link", "#")
-        content = entry.get("content", [{"value": entry.get("summary", "")}])[0].value
+        content_list = entry.get("content")
+        if content_list and isinstance(content_list, list) and len(content_list) > 0:
+            content = content_list[0].get("value", "")
+        else:
+            content = entry.get("summary", "")
 
         short_desc, image_url = self.clean_html_content(content, entry)
 
